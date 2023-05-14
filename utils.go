@@ -50,7 +50,8 @@ func updateCounter(key string) string {
 		return ""
 	}
 	body, err := ioutil.ReadAll(resp.Body)
-	log.Println(body)
+	sb := string(body)
+   	log.Printf(sb)
 	if err != nil {
 		return ""
 	}
