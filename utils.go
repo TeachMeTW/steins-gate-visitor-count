@@ -44,17 +44,18 @@ func updateCounter(key string) string {
 	resp, _ := http.DefaultClient.Do(req)
 				  
 	defer resp.Body.Close()
-	log.Println(req)
+	// log.Println(req)
 
 	if resp.StatusCode != http.StatusOK {
 		return ""
 	}
 	body, err := ioutil.ReadAll(resp.Body)
+	log.Println(body)
 	if err != nil {
 		return ""
 	}
 	var count = 0
-	log.Println(body)
+	
 	return strconv.Itoa(count)
 }
 
