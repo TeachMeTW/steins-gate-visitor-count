@@ -41,10 +41,11 @@ func generateMd5(id string) (string, error) {
 }
 
 func updateCounter(key string) string {
-	req, _ := http.NewRequest("GET", "https://komarev.com/ghpvc/?username=teachmetw, nil)
+	req, _ := http.NewRequest("GET", "https://komarev.com/ghpvc/?username=teachmetw", nil)
 	resp, _ := http.DefaultClient.Do(req)
 				  
 	defer resp.Body.Close()
+	log.Println(req
 
 	if resp.StatusCode != http.StatusOK {
 		return ""
