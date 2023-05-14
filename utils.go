@@ -54,12 +54,9 @@ func updateCounter(key string) string {
 	if err != nil {
 		return ""
 	}
-	var count Count
-	if err = json.Unmarshal(body, &count); err != nil {
-		log.Println(err)
-		return ""
-	}
-	return strconv.Itoa(count.Value)
+	var count = 0
+	log.Println(body)
+	return strconv.Itoa(count)
 }
 
 func generateImage(digits []image.Image, count string) image.Image {
