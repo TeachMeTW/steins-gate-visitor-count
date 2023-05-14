@@ -52,11 +52,10 @@ func updateCounter(key string) string {
 	}
 	body, err := ioutil.ReadAll(resp.Body)
 	sb := string(body)
-   	log.Printf(sb)
+   	// log.Printf(sb)
 
-	var count = 0
 	
-	return strconv.Itoa(count)
+	return sb
 }
 
 func generateImage(digits []image.Image, count string) image.Image {
