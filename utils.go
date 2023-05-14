@@ -7,7 +7,6 @@ import (
 	"image/draw"
 	"io"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"os"
 	"strconv"
