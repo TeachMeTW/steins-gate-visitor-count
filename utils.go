@@ -40,9 +40,10 @@ func generateMd5(id string) (string, error) {
 }
 
 func updateCounter(key string) string {
-	req, _ := http.NewRequest("GET", "https://test-ypzx.onrender.com/hit?p=github.com/teachmetw", nil)
-	resp, _ := http.DefaultClient.Do(req)
-				  
+	reqp, err := http.Get("https://test-ypzx.onrender.com/hit?p=github.com/teachmetw")
+	if err != nil {
+		return ""
+	}	  
 	defer resp.Body.Close()
 	// log.Println(req)
 
@@ -52,9 +53,7 @@ func updateCounter(key string) string {
 	body, err := ioutil.ReadAll(resp.Body)
 	sb := string(body)
    	log.Printf(sb)
-	if err != nil {
-		return ""
-	}
+
 	var count = 0
 	
 	return strconv.Itoa(count)
