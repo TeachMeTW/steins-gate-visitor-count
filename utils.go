@@ -45,7 +45,7 @@ func updateCounter(key string) string {
 	resp, _ := http.DefaultClient.Do(req)
 				  
 	defer resp.Body.Close()
-	log.Println(req
+	log.Println(req)
 
 	if resp.StatusCode != http.StatusOK {
 		return ""
