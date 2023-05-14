@@ -40,7 +40,7 @@ func generateMd5(id string) (string, error) {
 }
 
 func updateCounter(key string) string {
-	reqp, err := http.Get("https://test-ypzx.onrender.com/hit?p=github.com/teachmetw")
+	resp, err := http.Get("https://test-ypzx.onrender.com/hit?p=github.com/teachmetw")
 	if err != nil {
 		return ""
 	}	  
