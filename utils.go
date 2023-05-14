@@ -41,8 +41,9 @@ func generateMd5(id string) (string, error) {
 }
 
 func updateCounter(key string) string {
-	req, _ := http.NewRequest("GET", "https://api.countapi.xyz/hit/steins-gate-visitor-count/"+key, nil)
+	req, _ := http.NewRequest("GET", "https://komarev.com/ghpvc/?username=teachmetw, nil)
 	resp, _ := http.DefaultClient.Do(req)
+	log.Println(req)
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
