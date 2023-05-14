@@ -23,8 +23,9 @@ func main() {
 	cacheImages(&digits)
 
 	e := echo.New()
+	e.Use(middleware.Logger())
 	e.Use(middleware.Recover())
-	//e.Use(middleware.Logger())
+	
 
 	e.GET("/", func(c echo.Context) error {
 		return c.NoContent(http.StatusOK)
