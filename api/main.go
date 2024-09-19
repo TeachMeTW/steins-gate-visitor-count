@@ -51,12 +51,12 @@ func generateMd5(id string) (string, error) {
     return res, nil
 }
 
-// updateCounter increments the visit count using CounterAPI
+// updateCounter increments the visit count using countapi.xyz
 func updateCounter(key string) (string, error) {
-    namespace := "github-visitor-counter"
+    namespace := "github.com"
     name := key // Use the key as the name to make the counter ID-specific
 
-    url := fmt.Sprintf("https://api.counterapi.dev/v1/%s/%s/up/", namespace, name)
+    url := fmt.Sprintf("https://api.countapi.xyz/hit/%s/%s", namespace, name)
     resp, err := http.Get(url)
     if err != nil {
         log.Println("Error fetching counter:", err)
@@ -117,11 +117,8 @@ func Handler(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-    // Extract the ID from the URL path
-    id := r.URL.Path[len("/"):]
-    if id == "" {
-        id = "default" // Provide a default ID if none is specified
-    }
+    // Set the ID to 'teachmetw' to count visits for that repository
+    id := "teachmetw"
 
     m, err := generateMd5(id)
     if err != nil {
