@@ -3,31 +3,42 @@ package handler
 import (
     "bytes"
     "crypto/md5"
+    "embed"
+    "encoding/json"
     "fmt"
     "image"
     "image/draw"
     "image/png"
     "io"
-    "io/ioutil"
     "log"
     "net/http"
-    "os"
     "strconv"
     "time"
 
     "github.com/nfnt/resize"
 )
 
+//go:embed digits/*.png
+var digitImages embed.FS
+
 // cacheImages loads images into memory
-func cacheImages(digits *[]image.Image) {
-    cacheOneImage := func(no int) {
-        file, _ := os.Open(fmt.Sprintf("digits/%d.png", no))
-        defer file.Close()
-        (*digits)[no], _, _ = image.Decode(file)
+func cacheImages() ([]image.Image, error) {
+    digits := make([]image.Image, 10)
+    for i := 0; i < 10; i++ {
+        fileName := fmt.Sprintf("digits/%d.png", i)
+        fileData, err := digitImages.Open(fileName)
+        if err != nil {
+            return nil, fmt.Errorf("failed to open image %s: %v", fileName, err)
+        }
+        defer fileData.Close()
+
+        img, _, err := image.Decode(fileData)
+        if err != nil {
+            return nil, fmt.Errorf("failed to decode image %s: %v", fileName, err)
+        }
+        digits[i] = img
     }
-    for i := range *digits {
-        cacheOneImage(i)
-    }
+    return digits, nil
 }
 
 // generateMd5 creates an MD5 hash of the provided string
@@ -41,41 +52,53 @@ func generateMd5(id string) (string, error) {
 }
 
 // updateCounter increments the visit count using CounterAPI
-func updateCounter(key string) string {
+func updateCounter(key string) (string, error) {
     namespace := "github-visitor-counter"
-    name := "teachmetw-visit"
+    name := key // Use the key as the name to make the counter ID-specific
 
-    url := fmt.Sprintf("https://api.counterapi.dev/v1/%s/%s/up", namespace, name)
+    url := fmt.Sprintf("https://api.counterapi.dev/v1/%s/%s/up/", namespace, name)
     resp, err := http.Get(url)
     if err != nil {
         log.Println("Error fetching counter:", err)
-        return ""
+        return "", err
     }
     defer resp.Body.Close()
 
     if resp.StatusCode != http.StatusOK {
         log.Println("Non-OK HTTP status:", resp.StatusCode)
-        return ""
+        return "", fmt.Errorf("non-OK HTTP status: %d", resp.StatusCode)
     }
 
-    body, err := ioutil.ReadAll(resp.Body)
+    body, err := io.ReadAll(resp.Body)
     if err != nil {
         log.Println("Error reading response body:", err)
-        return ""
+        return "", err
     }
 
-    return string(body)
+    // Parse the JSON response to extract the counter value
+    var result struct {
+        Value int `json:"value"`
+    }
+    if err := json.Unmarshal(body, &result); err != nil {
+        log.Println("Error parsing JSON:", err)
+        return "", err
+    }
+
+    return strconv.Itoa(result.Value), nil
 }
 
 // generateImage creates an image from the count
-func generateImage(digits []image.Image, count string) image.Image {
+func generateImage(digits []image.Image, count string) (image.Image, error) {
     length := len(count)
     img := image.NewNRGBA(image.Rect(0, 0, 200*length, 200))
-    for i := range count {
-        index, _ := strconv.Atoi(count[i : i+1])
+    for i, c := range count {
+        index, err := strconv.Atoi(string(c))
+        if err != nil || index < 0 || index > 9 {
+            return nil, fmt.Errorf("invalid digit '%c' in count", c)
+        }
         draw.Draw(img, image.Rect(i*200, 0, 200*(i+1), 200), digits[index], digits[index].Bounds().Min, draw.Over)
     }
-    return img
+    return img, nil
 }
 
 // resizeImage resizes an image by a given ratio
@@ -87,8 +110,12 @@ func resizeImage(img image.Image, ratio float64) image.Image {
 
 // Handler is the exported function that Vercel will invoke
 func Handler(w http.ResponseWriter, r *http.Request) {
-    digits := make([]image.Image, 10)
-    cacheImages(&digits)
+    digits, err := cacheImages()
+    if err != nil {
+        log.Println("Error loading images:", err)
+        http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+        return
+    }
 
     // Extract the ID from the URL path
     id := r.URL.Path[len("/"):]
@@ -98,20 +125,25 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 
     m, err := generateMd5(id)
     if err != nil {
-        log.Println(err)
+        log.Println("Error generating MD5:", err)
         http.Error(w, "Bad Request", http.StatusBadRequest)
         return
     }
 
-    count := updateCounter(m)
-    if count == "" {
-        log.Println("Fetch visitor count error.")
+    count, err := updateCounter(m)
+    if err != nil {
+        log.Println("Fetch visitor count error:", err)
         http.Error(w, "Internal Server Error", http.StatusInternalServerError)
         return
     }
 
     // Generate image with the count
-    img := generateImage(digits, count)
+    img, err := generateImage(digits, count)
+    if err != nil {
+        log.Println("Error generating image:", err)
+        http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+        return
+    }
 
     // Check for the 'ratio' query parameter
     ratioStr := r.URL.Query().Get("ratio")
@@ -124,7 +156,7 @@ func Handler(w http.ResponseWriter, r *http.Request) {
     buf := new(bytes.Buffer)
     err = png.Encode(buf, img)
     if err != nil {
-        log.Println(err)
+        log.Println("Error encoding PNG:", err)
         http.Error(w, "Internal Server Error", http.StatusInternalServerError)
         return
     }
