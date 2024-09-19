@@ -4,7 +4,6 @@ import (
     "bytes"
     "crypto/md5"
     "embed"
-    "encoding/json"
     "encoding/xml"
     "fmt"
     "image"
