@@ -13,6 +13,7 @@ import (
     "log"
     "net/http"
     "strconv"
+    "sync"
     "time"
 
     "github.com/nfnt/resize"
@@ -20,6 +21,11 @@ import (
 
 //go:embed digits/*.png
 var digitImages embed.FS
+
+var (
+    digits    []image.Image
+    cacheOnce sync.Once
+)
 
 // cacheImages loads images into memory
 func cacheImages() ([]image.Image, error) {
@@ -30,9 +36,9 @@ func cacheImages() ([]image.Image, error) {
         if err != nil {
             return nil, fmt.Errorf("failed to open image %s: %v", fileName, err)
         }
-        defer fileData.Close()
 
         img, _, err := image.Decode(fileData)
+        fileData.Close() // Close the file after decoding
         if err != nil {
             return nil, fmt.Errorf("failed to decode image %s: %v", fileName, err)
         }
@@ -57,7 +63,13 @@ func updateCounter(key string) (string, error) {
     name := key // Use the key as the name to make the counter ID-specific
 
     url := fmt.Sprintf("https://api.countapi.xyz/hit/%s/%s", namespace, name)
-    resp, err := http.Get(url)
+
+    // Create a custom HTTP client with a timeout
+    client := http.Client{
+        Timeout: 5 * time.Second,
+    }
+
+    resp, err := client.Get(url)
     if err != nil {
         log.Println("Error fetching counter:", err)
         return "", err
@@ -110,9 +122,17 @@ func resizeImage(img image.Image, ratio float64) image.Image {
 
 // Handler is the exported function that Vercel will invoke
 func Handler(w http.ResponseWriter, r *http.Request) {
-    digits, err := cacheImages()
-    if err != nil {
-        log.Println("Error loading images:", err)
+    // Load images only once
+    cacheOnce.Do(func() {
+        var err error
+        digits, err = cacheImages()
+        if err != nil {
+            log.Println("Error loading images:", err)
+            digits = nil
+        }
+    })
+
+    if digits == nil {
         http.Error(w, "Internal Server Error", http.StatusInternalServerError)
         return
     }
