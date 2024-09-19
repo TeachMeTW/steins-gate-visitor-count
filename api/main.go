@@ -5,6 +5,7 @@ import (
     "crypto/md5"
     "embed"
     "encoding/json"
+    "encoding/xml"
     "fmt"
     "image"
     "image/draw"
@@ -13,6 +14,7 @@ import (
     "log"
     "net/http"
     "strconv"
+    "strings"
     "sync"
     "time"
 
@@ -57,16 +59,14 @@ func generateMd5(id string) (string, error) {
     return res, nil
 }
 
-// updateCounter increments the visit count using countapi.xyz
+// updateCounter increments the visit count using Hits (hits.dwyl.com)
 func updateCounter(key string) (string, error) {
-    namespace := "github.com"
-    name := key // Use the key as the name to make the counter ID-specific
-
-    url := fmt.Sprintf("https://api.countapi.xyz/hit/%s/%s", namespace, name)
+    // key should be in the format "username/repository"
+    url := fmt.Sprintf("https://hits.dwyl.com/%s.svg", key)
 
     // Create a custom HTTP client with a timeout
     client := http.Client{
-        Timeout: 5 * time.Second,
+        Timeout: 10 * time.Second,
     }
 
     resp, err := client.Get(url)
@@ -87,16 +87,52 @@ func updateCounter(key string) (string, error) {
         return "", err
     }
 
-    // Parse the JSON response to extract the counter value
-    var result struct {
-        Value int `json:"value"`
-    }
-    if err := json.Unmarshal(body, &result); err != nil {
-        log.Println("Error parsing JSON:", err)
+    // Parse the SVG to extract the visitor count
+    count, err := parseSVGCount(body)
+    if err != nil {
+        log.Println("Error parsing SVG:", err)
         return "", err
     }
 
-    return strconv.Itoa(result.Value), nil
+    return count, nil
+}
+
+// parseSVGCount parses the SVG content to extract the visitor count
+func parseSVGCount(svgData []byte) (string, error) {
+    type Text struct {
+        XMLName xml.Name `xml:"text"`
+        Content string   `xml:",chardata"`
+    }
+
+    type SVG struct {
+        XMLName xml.Name `xml:"svg"`
+        Texts   []Text   `xml:"g>text"`
+    }
+
+    var svg SVG
+    err := xml.Unmarshal(svgData, &svg)
+    if err != nil {
+        return "", err
+    }
+
+    // The visitor count is usually in the last text element
+    if len(svg.Texts) == 0 {
+        return "", fmt.Errorf("no text elements found in SVG")
+    }
+
+    // Extract the last text element's content
+    lastText := svg.Texts[len(svg.Texts)-1].Content
+    count := strings.TrimSpace(lastText)
+
+    // Remove any commas from the count (e.g., "1,234" -> "1234")
+    count = strings.ReplaceAll(count, ",", "")
+
+    // Ensure the count is a valid number
+    if _, err := strconv.Atoi(count); err != nil {
+        return "", fmt.Errorf("invalid count extracted: %s", count)
+    }
+
+    return count, nil
 }
 
 // generateImage creates an image from the count
@@ -138,16 +174,20 @@ func Handler(w http.ResponseWriter, r *http.Request) {
     }
 
     // Set the ID to 'teachmetw' to count visits for that repository
-    id := "teachmetw"
+    // Hits requires the format 'username/repository'
+    id := "teachmetw/teachmetw"
 
+    // The MD5 hash is not necessary here, but keeping it if needed elsewhere
+    /*
     m, err := generateMd5(id)
     if err != nil {
         log.Println("Error generating MD5:", err)
         http.Error(w, "Bad Request", http.StatusBadRequest)
         return
     }
+    */
 
-    count, err := updateCounter(m)
+    count, err := updateCounter(id)
     if err != nil {
         log.Println("Fetch visitor count error:", err)
         http.Error(w, "Internal Server Error", http.StatusInternalServerError)
