@@ -85,57 +85,53 @@ func resizeImage(img image.Image, ratio float64) image.Image {
 	return resize.Resize(width, height, img, resize.Lanczos3)
 }
 
-func main() {
-	port := os.Getenv("port")
-	if port == "" {
-		port = "8080"
-	}
-
+// Exported HTTP handler for Vercel
+func Handler(w http.ResponseWriter, r *http.Request) {
 	digits := make([]image.Image, 10)
 	cacheImages(&digits)
 
-	e := echo.New()
-	e.Use(middleware.Logger())
-	e.Use(middleware.Recover())
+	// Extract the ID from the URL
+	id := r.URL.Path[len("/"):]
 
-	e.GET("/", func(c echo.Context) error {
-		return c.NoContent(http.StatusOK)
-	})
+	m, err := generateMd5(id)
+	if err != nil {
+		log.Println(err)
+		http.Error(w, "Bad Request", http.StatusBadRequest)
+		return
+	}
 
-	e.GET("/:id", func(c echo.Context) error {
-		id := c.Param("id")
+	count := updateCounter(m)
+	if count == "" {
+		log.Println("Fetch visitor count error.")
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
 
-		m, err := generateMd5(id)
-		if err != nil {
-			log.Println(err)
-			return c.NoContent(http.StatusBadRequest)
+	// Generate image with the count
+	img := generateImage(digits, count)
+
+	// Check for the 'ratio' query parameter
+	ratioStr := r.URL.Query().Get("ratio")
+	if len(ratioStr) != 0 {
+		if ratio, err := strconv.ParseFloat(ratioStr, 64); err == nil && ratio > 0 && ratio <= 2 {
+			img = resizeImage(img, ratio)
 		}
+	}
 
-		count := updateCounter(m)
-		if count == "" {
-			log.Println("Fetch visitor count error.")
-			return c.NoContent(http.StatusInternalServerError)
-		}
+	buf := new(bytes.Buffer)
+	err = png.Encode(buf, img)
+	if err != nil {
+		log.Println(err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
 
-		img := generateImage(digits, count)
-		if v := c.QueryParam("ratio"); len(v) != 0 {
-			if ratio, err := strconv.ParseFloat(v, 64); err == nil && ratio > 0 && ratio <= 2 {
-				img = resizeImage(img, ratio)
-			}
-		}
-		buf := new(bytes.Buffer)
-		err = png.Encode(buf, img)
-		if err != nil {
-			log.Println(err)
-			return c.NoContent(http.StatusInternalServerError)
-		}
+	// Set headers
+	expireTime := time.Now().Add(-10 * time.Minute).String()
+	w.Header().Set("Expires", expireTime)
+	w.Header().Set("Cache-Control", "no-cache,max-age=0,no-store,s-maxage=0,proxy-revalidate")
 
-		expireTime := time.Now().Add(-10 * time.Minute).String()
-		c.Response().Header().Add("Expires", expireTime)
-		c.Response().Header().Add("Cache-Control", "no-cache,max-age=0,no-store,s-maxage=0,proxy-revalidate")
-
-		return c.Blob(http.StatusOK, "image/png", buf.Bytes())
-	})
-
-	e.Logger.Fatal(e.Start(":" + port))
+	w.Header().Set("Content-Type", "image/png")
+	w.WriteHeader(http.StatusOK)
+	w.Write(buf.Bytes())
 }
