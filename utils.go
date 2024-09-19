@@ -38,23 +38,32 @@ func generateMd5(id string) (string, error) {
 	return res, nil
 }
 
-func updateCounter(key string) string {
-	resp, err := http.Get("https://hittw.replit.app/hit?p=github.com/teachmetw")
-	if err != nil {
-		return ""
-	}	  
-	defer resp.Body.Close()
-	// log.Println(req)
+// UpdateCounter now uses CounterAPI to count up
+func updateCounter(namespace, name string) string {
+    namespace := "github-visitor-counter"  // Set a unique namespace
+    name := "teachmetw-visit"  // Name of the counter to track visits to your GitHub
 
-	if resp.StatusCode != http.StatusOK {
-		return ""
-	}
-	body, err := ioutil.ReadAll(resp.Body)
-	sb := string(body)
-   	// log.Printf(sb)
+    url := fmt.Sprintf("https://api.counterapi.dev/v1/%s/%s/up", namespace, name)
+    
+    resp, err := http.Get(url)
+    if err != nil {
+        fmt.Println("Error making request:", err)
+        return ""
+    }
+    defer resp.Body.Close()
 
-	
-	return sb
+    if resp.StatusCode != http.StatusOK {
+        fmt.Println("Non-OK HTTP status:", resp.StatusCode)
+        return ""
+    }
+
+    body, err := ioutil.ReadAll(resp.Body)
+    if err != nil {
+        fmt.Println("Error reading response body:", err)
+        return ""
+    }
+
+    return string(body)
 }
 
 func generateImage(digits []image.Image, count string) image.Image {
