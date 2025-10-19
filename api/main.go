@@ -58,8 +58,7 @@ func generateMd5(id string) (string, error) {
 }
 
 func updateCounter(counterName string) (string, error) {
-    // Replace with your Firebase Realtime Database URL
-    firebaseDatabaseURL := "https://teachmetw-counter-default-rtdb.firebaseio.com/"
+    firebaseDatabaseURL := "https://counter-6cd85-default-rtdb.firebaseio.com/"
 
     // Path to the counter in the database
     counterPath := fmt.Sprintf("/counters/%s/count.json", counterName)
